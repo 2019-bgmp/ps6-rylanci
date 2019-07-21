@@ -1,0 +1,69 @@
+My unit test fasta file for ps6 contained 9 contigs. Their physical lengths
+were [4812, 4355, 2220, 1202, 870, 601, 445, 431, 285]
+
+
+The N50 calculated by hand from longest to shortest contig is 4355.
+This is also the N50 calculated by my program. Unfortunately this unit test
+does not check whether N50 is calculated from a list of contigs sorted longest to
+shortest or shortest to longest, so that could be an improvement.
+
+The mean contig length of 1691.22 and max kmer length of 4812 were also successfully
+calculated by my program.
+
+The bucketing algorithm also performed correctly with its output of..
+
+# Contig length 	 Number of contigs in this category
+0 	 0
+100 	 0
+200 	 1
+300 	 0
+400 	 2
+500 	 0
+600 	 1
+700 	 0
+800 	 1
+900 	 0
+1000 	 0
+1100 	 0
+1200 	 1
+1300 	 0
+1400 	 0
+1500 	 0
+1600 	 0
+1700 	 0
+1800 	 0
+1900 	 0
+2000 	 0
+2100 	 0
+2200 	 1
+2300 	 0
+2400 	 0
+2500 	 0
+2600 	 0
+2700 	 0
+2800 	 0
+2900 	 0
+3000 	 0
+3100 	 0
+3200 	 0
+3300 	 0
+3400 	 0
+3500 	 0
+3600 	 0
+3700 	 0
+3800 	 0
+3900 	 0
+4000 	 0
+4100 	 0
+4200 	 0
+4300 	 1
+4400 	 0
+4500 	 0
+4600 	 0
+4700 	 0
+4800 	 1
+
+
+These unit tests show that my program is capable of calulating these stats
+correctly on larger files.
+

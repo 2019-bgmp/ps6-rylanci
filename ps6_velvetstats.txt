@@ -1,0 +1,51 @@
+Velvet stat comparisons:
+
+Velvet k31:
+N50- 259
+mean_contig_length- 199.17
+max_contig_length- 3827
+total_assembly_length-2430690
+number_of_contigs-12204
+
+Velvet k41:
+N50- 780
+mean_contig_length- 331.85
+max_contig_length- 7451
+total_assembly_length-1801299
+number_of_contigs-5428
+
+Velvet k49:
+N50- 1055
+mean_contig_length- 494.35
+max_contig_length- 5985
+total_assembly_length-1615538
+number_of_contigs-3268
+
+Velvet k49 cc20:
+N50- 1796
+mean_contig_length- 907.06
+max_contig_length- 10467
+total_assembly_length-1196988
+number_of_contigs-1344
+
+Velvet k49 cc60:
+N50- 1923
+mean_contig_length- 912.99
+max_contig_length- 7268
+total_assembly_length-395328
+number_of_contigs-433
+
+Velvet k49 ccauto:
+N50- 1796
+mean_contig_length- 890.61
+max_contig_length- 10467
+total_assembly_length-1196988
+number_of_contigs-1344
+
+Velvet k49 ccauto mincontiglen 500:
+N50- 2022
+mean_contig_length- 1649
+max_contig_length- 10467
+total_assembly_length-1029505
+number_of_contigs-624
+
