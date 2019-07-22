@@ -1,0 +1,461 @@
+2019.07.12  PS6 entry 1
+------
+#script_title: contigs_parser.py
+#packages used:
+    re
+    sys(optional)
+
+I will be utilizing a fasta file output by genome assembly software to study contigs.
+This script will specifically be used on velvet output
+
+The file is stored locally at /Users/ryan/Bi621_2019/Assignments/contigs.fa
+Due to the size of the file, I created a test file called contig_test.fa. It contains the three initial records of contigs.fa,
+and its stored at /Users/ryan/Bi621_2019/Assignments/contigs_test.fa
+
+
+Extracted the contig len and coverage into respective variables contig_length, and contig_cov,
+from header with regular expression and python script
+Ex header. >NODE_11_length_3717_cov_19.315845
+contig_length utilizes adjusted kmer length.
+
+with open(FILE, "r") as fh:
+    for line in fh:
+        if line[0] == ">": #selects the headers off the fasta
+            x=[]
+            x.append(re.findall("[0-9.]+", line))
+#            print(x)
+#            sys.exit() # if run would exit the loop
+#            y=[]
+            #print(x)
+            cl = KMER_LEN + int(x[0][1]) -1
+            contig_cov.append(float(x[0][2]))
+            contig_length.append(cl)
+
+Eventual PS6 velveth options:
+    shrt paired first two files
+    short two for third file last file
+
+A quicker way to grab only the len and the cov from the headers with reg exps would be
+x.append(re.select("_.+_.+_(.+)_.+_(.+)", head[i], )): credit Jared
+A little unsure about the select function.
+
+
+-------
+2019.07.14
+
+#script_title: contigs_parser.py
+#packages used:
+    re
+    sys(optional)
+
+Some stats I ran:
+Adjust the k-mer length to represent the physical length. Calculate the number of
+contigs, the maximum contig length, the mean contig length, and the total length of the
+genome assembly across the contigs. Calculate the mean depth of coverage for the
+contigs.
+
+num_contigs = len(contig_length)
+mean_contig_len=(sum(contig_length)/len(contig_length))
+max_contig_len= sorted(contig_length, reverse=True)
+max_contig_len = max_contig_len[0]
+total_len_assembly = sum(contig_length)
+
+# calculating N50 of my assembly
+N50: the contig that exists where total contig nucleotides eclipses 50% of
+    the total nucleotides when summing contig nucleotides from smalles to largest
+
+for j in sorted(contig_length):
+    contig_nuc_sum += j
+    if contig_nuc_sum > (total_len_assembly/2):
+#        print(j)
+        break
+
+------
+2019.07.15
+Next I built a script to store the contigs in buckets based on their length.
+I actually found two ways to do it. One with itertools and one
+
+Itertools not implemented so this is an example
+
+import itertools
+nums = [1, 25, 99, 100, 150, 175, 199, 200, 225, 250, 275, 299]
+for k, g in itertools.groupby(nums, key=lambda n: n//100):
+    print(k, list(g))
+
+The dictionary method worked wonders though and I'm kinda proud of it.
+Sometimes working on assignments during lecture works out.
+
+bucket_dict = {}
+for val in range(0,50000,100):    # init dict with keys at 0-50000 with increments of 100
+    bucket_dict.setdefault(val, 0) # setdefault was a damn good way to init a dictionary
+
+for n in contig_length:
+    if ((n // 100)*100) in bucket_dict:  # if bucket
+        bucket_dict[(n // 100)*100] +=1
+
+
+
+Before I can run velvet I must calculate expected coverage, and kmer coverage
+Here is how I went about that.
+
+#script_title: velvet_prep.py
+# packages:
+    none
+
+F =["/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_1","/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_2","/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq.unmatched"]
+#F = "ps6pt2_test.fq"
+
+#total nucleotide prediction
+fosmids= 50
+fos_lens = 40000
+p_total_nuc = fosmids * fos_lens
+
+
+#calculating actual total nucleotides
+
+seq_list=[]
+for i in F:
+        with open(i, "r") as fh:
+                for i,l in enumerate(fh):
+                        if i%4 == 1:
+                                seq_list.append(len(l.strip()))
+
+#print(seq_list)i
+num_reads = len(seq_list)
+total_nuc=sum(seq_list)
+exp_kmer_cov=(total_nuc/p_total_nuc)
+avg_seq_len = total_nuc/num_reads
+print(exp_kmer_cov)
+print(avg_seq_len)
+
+
+
+
+# kmer_coverage = (expected kmer coverage * kmers per record) / average sequence length
+# reminder: kmers_per_record= read_len - k_size - 1
+kpr31 =  avg_seq_len -31 -1
+kpr41 = avg_seq_len -41 -1
+kpr49 = avg_seq_len -49 -1
+Kmer_cov31=(exp_kmer_cov * kpr31) / avg_seq_len
+Kmer_cov41=(exp_kmer_cov * kpr41) / avg_seq_len
+Kmer_cov49=(exp_kmer_cov * kpr49) / avg_seq_len
+
+-------
+2019.07.16
+
+Here is how I started my jobscript: credit jared, Spencer for good ideas
+Additional note: %x and %j seem to summon job# and job name for building
+output file
+
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+Now I beleive I will use my expected kmer coverage, avg seq length and actual
+kmer coverages to formulate my velvet commands.
+
+My current idea of commands
+# velveth command schematic: Program outputfile kmerlength filetype readtype files (if desired repeat:filetype readtype files)
+# velvetgcommand schematic: velvetg output_directory/ -ins_length 400 -exp_cov 21.3
+
+I have also created some directories for output. Velvet h requires an output
+directory and input files as flags to function. Velvetg on the otherhand
+only takes the output directory of the velveth data that you wish to run on
+velvetg. Velvetg will then automatically search that directory for input as
+well as outputting its contigs fasta file there. That is the file I will run with
+contigs_parser.py.
+
+------
+2019.07.17
+
+My entire jobscript for running velvet h on 31,41,49 kmer lengths.
+Submitted as jobscript #9615948
+Runtime=00:00:53
+
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+
+# Part 1: velveth for kmer_lens 31, 41, 49
+
+file1=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_1
+file2=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_2
+file3=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq.unmatched
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_31
+fileo2=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_41
+fileo3=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+# velveth command schematic: Program outputfile kmerlength filetype readtype files (if desired repeat:filetype readtype files)
+# velvetgcommand schematic: velvetg output_directory/ -ins_length 400 -exp_cov 21.3
+
+
+	# velveth kmer_len 31
+/usr/bin/time -v velveth $fileo1 31 -fastq -shortPaired $file1 $file2 -fastq -short $file3
+
+	# velveth kmer len 41
+/usr/bin/time -v velveth $fileo2 41 -fastq -shortPaired $file1 $file2 -fastq -short $file3
+
+	# velveth kmer len 49
+/usr/bin/time -v velveth $fileo3 49 -fastq -shortPaired $file1 $file2 -fastq -short $file3
+
+
+	#velvetg kmer_len 31
+#/usr/bin/time -v velvetg $fileo1 -ins_length 76.79104993766992 -exp_cov 98.5912995
+
+
+My velvetg script had the same slurm headers but went like..
+Jobscript #9616029
+Runtime=00:01:43
+
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_31
+fileo2=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_41
+fileo3=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+
+#running velvetg for each of the kmer lengths
+
+	#velvetg kmer_len 31
+/usr/bin/time -v velvetg $fileo1 -ins_length 76.79104993766992 -exp_cov 98.5912995
+
+
+	#velvetg kmer_len 41
+/usr/bin/time -v velvetg $fileo2 -ins_length 76.79104993766992 -exp_cov 98.5912995
+
+	#velvetg kmer_len 49
+/usr/bin/time -v velvetg $fileo3 -ins_length 76.79104993766992 -exp_cov 98.5912995
+
+
+This output the file contigs.fa along with other info to each respective output
+file.
+--------
+2019.07.20
+
+I RAN VELVET WRONG
+
+Long story short a -separate option was required while running velveth not to
+mention my use of the insert length and expected coverage options while running
+velvetg was incorrect as well.
+
+As a result I will repost my corrected jobscripts below.
+
+Here is velveth corrected
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+
+# Part 1: velveth for kmer_lens 31, 41, 49
+
+file1=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_1
+file2=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq_2
+file3=/projects/bgmp/shared/Bi621/800_3_PE5_interleaved.fq.unmatched
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_31
+fileo2=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_41
+fileo3=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+# velveth command schematic: Program outputfile kmerlength filetype readtype files (if desired repeat:filetype readtype files)
+# velvetgcommand schematic: velvetg output_directory/ -ins_length 400 -exp_cov 21.3
+
+
+	# velveth kmer_len 31
+/usr/bin/time -v velveth $fileo1 31 -fastq -shortPaired -separate $file1 $file2 -fastq -short $file3
+
+	# velveth kmer len 41
+/usr/bin/time -v velveth $fileo2 41 -fastq -shortPaired -separate $file1 $file2 -fastq -short $file3
+
+	# velveth kmer len 49
+/usr/bin/time -v velveth $fileo3 49 -fastq -shortPaired -separate $file1 $file2 -fastq -short $file3
+
+
+	#velvetg kmer_len 31
+#/usr/bin/time -v velvetg $fileo1 -ins_length 76.79104993766992 -exp_cov 98.5912995
+
+#End script
+
+
+Here is the velvetg script for k31, 41, and 49
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_31
+fileo2=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_41
+fileo3=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+
+#running velvetg for each of the kmer lengths
+
+	#velvetg kmer_len 31
+/usr/bin/time -v velvetg $fileo1
+
+
+	#velvetg kmer_len 41
+/usr/bin/time -v velvetg $fileo2
+
+	#velvetg kmer_len 49
+/usr/bin/time -v velvetg $fileo3
+
+#End Script
+
+Velvetg k49 cc20 script
+
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+# velvetg run with kmersize 49. cov cutoff 20x
+
+
+/usr/bin/time -v velvetg $fileo1 -cov_cutoff 20.0
+
+#End script
+
+Velvetg k49 cc60 script
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+
+
+# input and output directory for velvetg
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+
+
+
+# velvetg run for kmer len 49. cov cutoff 60x
+
+/usr/bin/time -v velvetg $fileo1 -cov_cutoff 60
+
+# End Script
+
+Velvetg k49 cc auto Script
+
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+
+
+# input and output file for velvetg
+fileo3=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+
+# velvetg run for coverage cutoff auto
+/usr/bin/time -v velvetg $fileo3 -cov_cutoff auto
+
+# End Script
+
+Velvetg k49 cc auto min contig len 500
+
+#!/usr/bin/env bash
+
+#SBATCH --account=bgmp          ### SLURM account which will be charged for the job
+#SBATCH --partition=bgmp        ### Partition (like a queue in PBS)
+#SBATCH --job-name=PS6          ### Job Name
+#SBATCH --output=slurm-%j-%x.out         ### File in which to store job output
+#SBATCH --error=velvet.err          ### File in which to store job error messages
+#SBATCH --time=0-01:00:00       ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1               ### Node count required for the job (usually 1)
+#SBATCH --ntasks-per-node=1     ### Nuber of tasks to be launched per Node (usually 1)
+#SBATCH --cpus-per-task=8       ### Number of cpus (cores) per task
+#SBATCH --mail-user=rlancio5@uoregon.edu
+#SBATCH --mail-type=ALL
+
+
+
+fileo1=/projects/bgmp/rlancio5/Bi621/ps6-rylanci/velvet_out_49
+
+# velvetg run with kmersize 49. cov cutoff 20x
+
+
+/usr/bin/time -v velvetg $fileo1 -min_contig_lgth 500 -cov_cutoff auto
+
+#End Script
